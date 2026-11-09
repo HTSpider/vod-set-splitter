@@ -1,0 +1,12 @@
+# Installed and made again
+__pycache__/
+*.pyc
+.venv/
+tmp/
+exports/
+
+# Your own projects, pictures and broadcast frames (projects are saved in AppData by the app)
+/*.json
+/*.jpg
+assets/birds-nest-trees.jpg
+profiles/

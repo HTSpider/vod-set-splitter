@@ -1,0 +1,1 @@
+"""Local tournament VOD set detection and export."""

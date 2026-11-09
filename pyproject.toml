@@ -1,0 +1,20 @@
+[project]
+name = "vod-set-splitter"
+version = "0.1.0"
+description = "Detect, review, and export tournament sets from long local VODs"
+requires-python = ">=3.11"
+dependencies = ["Pillow>=12.0", "pywebview>=6.0"]
+
+[project.scripts]
+vod-set-splitter = "vod_set_splitter.desktop:main"
+vod-set-splitter-cli = "vod_set_splitter.cli:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vod_set_splitter = ["ui/*"]

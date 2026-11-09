@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VOD Set Splitter</title>
+<style>
+:root {
+  --bg: #121417; --card: #1C1F24; --card-2: #23272D; --line: #2A2F36; --line-2: #3A4150;
+  --text: #F2F4F5; --muted: #9AA3AD; --accent: #E8B84A; --accent-ink: #15130C; --accent-soft: rgba(232,184,74,.12);
+  --done: #7EE2A0; --done-soft: rgba(126,226,160,.10); --danger: #FF7A7A; --radius: 18px;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --display: Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; -webkit-font-smoothing: antialiased; overflow: hidden; }
+body::before { content: ''; position: fixed; inset: 0 0 auto 0; height: 320px; pointer-events: none; z-index: 0;
+  background: radial-gradient(110% 100% at 15% -10%, rgba(232,184,74,.09), transparent 60%), radial-gradient(70% 80% at 95% -20%, rgba(124,200,255,.05), transparent 60%); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+input, select { background: var(--card-2); border: 1.5px solid transparent; border-radius: 12px; padding: 0 12px; min-height: 40px; outline: none; width: 100%; }
+input:focus, select:focus { border-color: var(--accent); }
+select { appearance: none; padding-right: 32px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239AA3AD' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 14px; }
+select option { background: var(--card-2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px; min-height: 40px; padding: 0 16px;
+  background: var(--card-2); color: var(--text); font-weight: 600; white-space: nowrap; transition: background .15s, transform .1s; }
+.btn:hover:not(:disabled) { background: #2C3138; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover:not(:disabled) { background: #F2C969; }
+.btn.done { background: var(--done); color: #0E1A12; }
+.btn.small { min-height: 32px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+.btn.icon { width: 40px; padding: 0; }
+.btn svg { width: 18px; height: 18px; }
+kbd { font: 600 11px var(--font); color: var(--muted); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; margin-left: 2px; }
+.btn.primary kbd, .btn.done kbd { color: inherit; border-color: rgba(0,0,0,.25); }
+
+/* Top bar */
+.top { position: relative; z-index: 2; height: 64px; display: flex; align-items: center; gap: 28px; padding: 0 22px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 18px var(--display); letter-spacing: .3px; }
+.brand img { width: 30px; height: 30px; }
+.tabs { display: flex; gap: 4px; }
+.tabs button { border: 0; background: none; color: var(--muted); font-weight: 600; padding: 8px 14px; border-radius: 10px; }
+.tabs button:hover { color: var(--text); }
+.tabs button.on { color: var(--text); background: var(--card-2); }
+.top-right { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.video-name { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+
+main { position: relative; z-index: 1; height: calc(100% - 64px); }
+
+/* Home */
+#home { overflow: auto; padding: 48px 22px; }
+.home-inner { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.drop { border: 2px dashed var(--line-2); border-radius: 24px; padding: 54px 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; background: rgba(28,31,36,.55); transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop h1 { margin: 0; font: 700 26px var(--display); }
+.section-title { font: 700 17px var(--display); margin: 0 0 12px; }
+.recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.recent-card { position: relative; text-align: left; border: 1px solid rgba(255,255,255,.04); background: var(--card); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; transition: background .15s; }
+.recent-card:hover { background: #22262C; }
+.recent-card b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 22px; }
+.recent-card span { color: var(--muted); font-size: 13px; }
+.recent-card .progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.recent-card .progress i { display: block; height: 100%; background: var(--done); }
+.recent-card.missing { opacity: .55; }
+.recent-card .x { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border: 0; border-radius: 8px; background: none; color: var(--muted); opacity: 0; }
+.recent-card:hover .x { opacity: 1; }
+.recent-card .x:hover { background: var(--card-2); color: var(--text); }
+
+/* Editor */
+#editor { display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+.stage { overflow: auto; padding: 18px 22px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.player { position: relative; background: #000; border-radius: 16px; overflow: hidden; aspect-ratio: 16 / 9; max-height: 56vh; width: 100%; margin: 0 auto; }
+.player video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.player .wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0,0,0,.72); font-weight: 600; }
+.player .wait .bar { width: 260px; }
+.area-layer { position: absolute; inset: 0; cursor: crosshair; }
+.area-box { position: absolute; border: 2px solid var(--accent); background: rgba(232,184,74,.15); border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0,0,0,.45); }
+.area-actions { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 8px; }
+
+.scrub { position: relative; height: 34px; border-radius: 10px; background: var(--card); cursor: pointer; overflow: hidden; }
+.scrub .range { position: absolute; top: 0; bottom: 0; background: var(--accent-soft); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+.scrub .range.locked { background: var(--done-soft); border-color: var(--done); }
+.scrub .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); pointer-events: none; }
+.scrub .head::before { content: ''; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: var(--text); }
+.scrub .edge { position: absolute; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--muted); pointer-events: none; padding: 0 8px; }
+.scrub .edge.l { left: 0; } .scrub .edge.r { right: 0; }
+
+.controls { display: flex; align-items: center; gap: 8px; }
+.controls .time { font: 600 15px var(--display); letter-spacing: .3px; margin-left: 8px; font-variant-numeric: tabular-nums; }
+.controls .time span { color: var(--muted); font-weight: 400; }
+.controls select { width: 86px; min-height: 40px; margin-left: auto; }
+
+.overview { position: relative; height: 20px; border-radius: 8px; background: var(--card); cursor: pointer; overflow: hidden; }
+.overview .block { position: absolute; top: 3px; bottom: 3px; border-radius: 4px; background: #5A4A22; }
+.overview .block.locked { background: #2F5A3D; }
+.overview .block.sel { background: var(--accent); }
+.overview .block.locked.sel { background: var(--done); }
+.overview .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); pointer-events: none; }
+
+.card { background: var(--card); border-radius: var(--radius); padding: 18px; border: 1px solid rgba(255,255,255,.035); }
+.selected { display: flex; flex-direction: column; gap: 14px; }
+.title-row { display: flex; align-items: center; gap: 12px; }
+.title-row input { font: 700 18px var(--display); min-height: 46px; letter-spacing: .2px; }
+.badge { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--done-soft); color: var(--done); }
+.meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.matchup { display: grid; grid-template-columns: 1fr auto 1fr minmax(220px, 300px); gap: 14px; align-items: stretch; }
+.player-card { display: grid; grid-template-columns: 96px 1fr; gap: 12px; background: var(--card-2); border-radius: 14px; padding: 12px; min-width: 0; }
+.portrait { width: 96px; height: 110px; border-radius: 10px; background: #2B3038; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; color: var(--muted); font: 700 26px var(--display); }
+.portrait img { max-width: 92px; max-height: 106px; object-fit: contain; }
+.portrait.empty { align-items: center; }
+.player-card .fields { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.player-card .name { font: 700 15px var(--display); letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-card select { min-height: 36px; }
+.vs { align-self: center; font: 700 20px var(--display); color: var(--accent); }
+.thumb { border-radius: 12px; overflow: hidden; background: var(--card-2); aspect-ratio: 16 / 9; align-self: center; }
+.thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .spacer { flex: 1; }
+
+/* Sets list */
+.sidebar { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: rgba(22,24,28,.6); }
+.side-head { padding: 18px 18px 12px; display: flex; flex-direction: column; gap: 10px; }
+.side-head .row { display: flex; align-items: center; gap: 10px; }
+.side-head h2 { margin: 0; font: 700 18px var(--display); }
+.side-head .count { color: var(--muted); font-size: 13px; }
+.side-head .row .btn { margin-left: auto; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+.working { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 13px; }
+.list { flex: 1; overflow: auto; padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.set { position: relative; text-align: left; border: 1.5px solid transparent; background: var(--card); border-radius: 14px; padding: 12px 14px 12px 52px; display: flex; flex-direction: column; gap: 3px; transition: background .12s, border-color .12s; }
+.set:hover { background: #22262C; }
+.set.sel { border-color: var(--accent); background: #23231F; }
+.set.locked { background: #18221C; }
+.set.locked.sel { border-color: var(--done); }
+.set .n { position: absolute; left: 12px; top: 12px; width: 28px; height: 28px; border-radius: 9px; background: var(--card-2); display: flex; align-items: center; justify-content: center; font: 700 13px var(--display); color: var(--muted); }
+.set.locked .n { background: var(--done); color: #0E1A12; }
+.set b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 22px; }
+.set span { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.set .x { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border: 0; border-radius: 7px; background: none; color: var(--muted); opacity: 0; font-size: 16px; line-height: 1; }
+.set:hover .x { opacity: 1; }
+.set .x:hover { background: var(--card-2); color: var(--text); }
+.empty { color: var(--muted); text-align: center; padding: 30px 10px; }
+.side-foot { padding: 14px 18px 18px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.side-foot label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 13px; }
+.side-foot .btn { width: 100%; min-height: 46px; }
+
+/* Settings */
+#settings { overflow: auto; padding: 28px 22px 40px; }
+.settings-inner { max-width: 980px; margin: 0 auto; }
+.page-title { font: 700 26px var(--display); margin: 0 0 20px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel { display: flex; flex-direction: column; gap: 14px; }
+.panel h3 { margin: 0; font: 700 16px var(--display); }
+.setting { display: flex; align-items: center; gap: 12px; }
+.setting .label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.setting .label b { font-weight: 600; }
+.setting .label span { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setting .label span.good { color: var(--done); }
+.setting .label span.bad { color: var(--danger); }
+.setting input { width: 110px; text-align: right; }
+.segmented { display: inline-flex; background: var(--card-2); border-radius: 12px; padding: 3px; }
+.segmented button { border: 0; background: none; color: var(--muted); font-weight: 600; padding: 7px 14px; border-radius: 9px; }
+.segmented button.on { background: var(--accent); color: var(--accent-ink); }
+
+/* Messages */
+#toasts { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 50; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 14px; background: #2A2E35; border: 1px solid var(--line-2); border-radius: 14px; padding: 10px 10px 10px 16px; box-shadow: 0 12px 30px rgba(0,0,0,.4); font-weight: 500; max-width: 640px; }
+.toast:not(:has(button)) { padding-right: 16px; }
+.toast button { border: 0; background: none; color: var(--accent); font-weight: 700; padding: 6px 10px; border-radius: 8px; }
+.toast button:hover { background: rgba(255,255,255,.06); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2C3139; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="icon.png" alt="">VOD Set Splitter</div>
+  <nav class="tabs" role="tablist">
+    <button data-tab="sets" class="on">Sets</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+  <div class="top-right">
+    <span class="video-name" id="videoName"></span>
+    <button class="btn primary" id="openBtn" hidden>Open video</button>
+  </div>
+</header>
+
+<main id="home">
+  <div class="home-inner">
+    <div class="drop" id="drop">
+      <img src="icon.png" alt="" width="72" height="72">
+      <h1>Open a tournament VOD</h1>
+      <div style="display:flex;gap:10px"><button class="btn primary" id="openBtn2">Open video</button><button class="btn" id="importBtn">Open project</button></div>
+    </div>
+    <section id="recentWrap" hidden>
+      <h2 class="section-title">Recent</h2>
+      <div class="recent" id="recent"></div>
+    </section>
+  </div>
+</main>
+
+<main id="editor" hidden>
+  <section class="stage">
+    <div class="player" id="player">
+      <video id="video" preload="auto"></video>
+      <div class="wait" id="wait" hidden><span id="waitText">Getting this video ready to play</span><div class="bar"><i id="waitBar"></i></div></div>
+      <div class="area-layer" id="areaLayer" hidden>
+        <div class="area-box" id="areaBox"></div>
+        <div class="area-actions"><button class="btn primary" id="areaSave">Save area</button><button class="btn" id="areaCancel">Cancel</button></div>
+      </div>
+    </div>
+    <div class="scrub" id="detail" title="Click to move the playhead within this set"><div class="range" id="detailRange"></div><div class="head" id="detailHead"></div><span class="edge l" id="detailL"></span><span class="edge r" id="detailR"></span></div>
+    <div class="controls">
+      <button class="btn icon" id="back5" title="Back 5 seconds (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg></button>
+      <button class="btn icon" id="prevFrame" title="Previous frame (,)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="btn icon primary" id="play" title="Play or pause (Space)"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="btn icon" id="nextFrame" title="Next frame (.)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="btn icon" id="fwd5" title="Forward 5 seconds (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg></button>
+      <div class="time" id="time">00:00:00 <span>/ 00:00:00</span></div>
+      <select id="speed" aria-label="Speed"><option>0.25x</option><option>0.5x</option><option>0.75x</option><option selected>1x</option><option>1.5x</option><option>2x</option><option>3x</option><option>4x</option></select>
+    </div>
+    <div class="overview" id="overview" title="Click to jump"></div>
+
+    <div class="card selected" id="selected" hidden>
+      <div class="title-row">
+        <input id="title" aria-label="Set title" spellcheck="false">
+        <span class="badge" id="doneBadge" hidden>Done</span>
+      </div>
+      <div class="meta" id="meta"></div>
+      <div class="matchup">
+        <div class="player-card" data-side="1">
+          <div class="portrait"></div>
+          <div class="fields"><div class="name"></div><select class="character" aria-label="Player 1 character"></select><select class="skin" aria-label="Player 1 skin"></select></div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="player-card" data-side="2">
+          <div class="portrait"></div>
+          <div class="fields"><div class="name"></div><select class="character" aria-label="Player 2 character"></select><select class="skin" aria-label="Player 2 skin"></select></div>
+        </div>
+        <div class="thumb"><img id="thumb" alt="Thumbnail"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="setStart">Set start here <kbd>I</kbd></button>
+        <button class="btn" id="setEnd">Set end here <kbd>O</kbd></button>
+        <button class="btn" id="endPrev">End previous set here</button>
+        <button class="btn" id="addSet">Add set here</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="doneBtn">Mark done <kbd>D</kbd></button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="sidebar">
+    <div class="side-head">
+      <div class="row"><h2>Sets</h2><span class="count" id="count"></span><button class="btn small" id="findBtn">Find sets</button></div>
+      <div class="working" id="scanning" hidden><span id="scanText">Finding sets</span><div class="bar"><i id="scanBar"></i></div></div>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="side-foot">
+      <label>Tournament<input id="tournament" spellcheck="false"></label>
+      <div class="working" id="exporting" hidden><span id="exportText">Exporting</span><div class="bar"><i id="exportBar"></i></div></div>
+      <button class="btn primary" id="exportBtn">Export videos</button>
+    </div>
+  </aside>
+</main>
+
+<main id="settings" hidden>
+  <div class="settings-inner">
+    <h1 class="page-title">Settings</h1>
+    <div class="grid">
+      <section class="card panel">
+        <h3>Thumbnails</h3>
+        <div class="setting"><div class="label"><b>Character images</b><span id="sFolder"></span></div><button class="btn small" data-choose="characterFolder">Choose folder</button></div>
+        <div class="setting"><div class="label"><b>Background</b><span id="sBackground"></span></div><button class="btn small" data-choose="background">Choose image</button></div>
+      </section>
+      <section class="card panel">
+        <h3>Reading names</h3>
+        <div class="setting"><div class="label"><b>Tesseract</b><span id="sTesseract"></span></div>
+          <button class="btn small" id="getTesseract" hidden>Get Tesseract</button><button class="btn small" data-choose="tesseract">Choose</button></div>
+        <div class="setting"><div class="label"><b>ffmpeg</b><span id="sFfmpeg"></span></div><button class="btn small" id="getFfmpeg" hidden>Get ffmpeg</button></div>
+      </section>
+      <section class="card panel">
+        <h3>Finding sets</h3>
+        <div class="setting"><div class="label"><b>Scoreboard area</b><span id="sArea"></span></div><button class="btn small" id="chooseArea">Choose on the video</button></div>
+        <div class="setting"><div class="label"><b>Check every</b><span>seconds</span></div><input type="number" step="1" min="1" data-number="every"></div>
+        <div class="setting"><div class="label"><b>Change needed</b><span>0 to 1</span></div><input type="number" step="0.01" min="0.01" max="0.99" data-number="change"></div>
+        <div class="setting"><div class="label"><b>Settle time</b><span>seconds</span></div><input type="number" step="1" min="1" data-number="settle"></div>
+        <div class="setting"><div class="label"><b>Shortest set</b><span>seconds</span></div><input type="number" step="10" min="10" data-number="shortest"></div>
+      </section>
+      <section class="card panel">
+        <h3>Export</h3>
+        <div class="setting"><div class="label"><b>Cuts</b><span id="sCuts"></span></div>
+          <div class="segmented" id="cuts"><button data-exact="1">Exact</button><button data-exact="0">Fast</button></div></div>
+        <div class="setting"><div class="label"><b>Names of done sets</b></div><button class="btn small" id="nameDone">Name done sets</button></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="toasts"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = () => window.pywebview.api;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clock = (t, tenths) => {
+  t = Math.max(0, t || 0);
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+  const base = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return tenths ? `${base}.${Math.floor((t % 1) * 10)}` : base;
+};
+const short = (t) => { t = Math.round(t || 0); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`; };
+
+let video = null, sets = [], sel = -1, urls = {}, characters = { characters: [], skins: {} }, settings = {}, tab = "sets";
+const player = $("video");
+
+// ----- Messages, with Undo after changes -----
+function toast(text, action, label = "Undo", ms = 6000) {
+  const box = document.createElement("div");
+  box.className = "toast";
+  box.innerHTML = `<span>${esc(text)}</span>`;
+  if (action) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.onclick = () => { box.remove(); action(); };
+    box.append(b);
+  }
+  $("toasts").replaceChildren(box);
+  setTimeout(() => box.remove(), ms);
+}
+async function undo() {
+  const r = await api().undo();
+  apply(r);
+  toast(r.undone ? `${r.undone} undone.` : "Nothing to undo.");
+}
+
+// ----- Tabs and screens -----
+function show(next) {
+  tab = next;
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === next));
+  $("settings").hidden = next !== "settings";
+  $("home").hidden = next !== "sets" || !!video;
+  $("openBtn").hidden = !video;
+  $("editor").hidden = next !== "sets" || !video;
+  if (next === "settings") renderSettings();
+}
+document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => show(b.dataset.tab)));
+
+// ----- Home -----
+function renderRecent(items) {
+  $("recentWrap").hidden = !items.length;
+  $("recent").innerHTML = items.map((r, i) => `<button class="recent-card ${r.exists ? "" : "missing"}" data-i="${i}" title="${esc(r.path)}">
+    <b>${esc(r.tournament || r.name)}</b><span>${esc(r.name)}</span>
+    <span>${r.exists ? `${r.duration} · ${r.sets ? `${r.done} of ${r.sets} sets done` : "No sets yet"}` : "Video not found"}</span>
+    ${r.sets ? `<div class="progress"><i style="width:${(r.done / r.sets) * 100}%"></i></div>` : ""}
+    <span class="x" role="button" data-forget="${i}" title="Remove from Recent">×</span></button>`).join("");
+  $("recent").querySelectorAll(".recent-card").forEach((card) => (card.onclick = async (e) => {
+    const item = items[card.dataset.i];
+    if (e.target.dataset.forget !== undefined) { renderRecent(await api().forget_recent(item.path)); return; }
+    if (!item.exists) { toast("That video isn't there any more."); return; }
+    opened(await api().open_video(item.path));
+  }));
+}
+async function openVideo() { const r = await api().choose_video(); if (r) opened(r); }
+$("openBtn").onclick = openVideo;
+$("openBtn2").onclick = openVideo;
+$("importBtn").onclick = async () => { const r = await api().import_project(); if (r) opened(r); };
+const drop = $("drop");
+["dragenter", "dragover"].forEach((t) => document.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((t) => document.addEventListener(t, (e) => { if (t === "drop" || e.target === drop) drop.classList.remove("over"); }));
+
+function opened(r) {
+  if (!r) return;
+  if (r.error) { toast(r.error); return; }
+  video = r.video;
+  $("videoName").textContent = video.name;
+  $("videoName").title = video.path;
+  $("tournament").value = video.tournament || "";
+  $("wait").hidden = true;
+  player.src = video.url;
+  player.playbackRate = parseFloat($("speed").value);
+  sets = r.sets;
+  sel = sets.length ? 0 : -1;
+  show("sets");
+  renderAll();
+  if (sel >= 0) player.addEventListener("loadedmetadata", () => seek(sets[sel].start), { once: true });
+}
+
+// ----- The player -----
+const frame = () => 1 / ((video && video.fps) || 60);
+function seek(t) { if (!video) return; player.currentTime = Math.max(0, Math.min(t, video.duration - 0.01)); drawHeads(); }
+function togglePlay() { if (!video) return; player.paused ? player.play() : player.pause(); }
+$("play").onclick = togglePlay;
+$("back5").onclick = () => seek(player.currentTime - 5);
+$("fwd5").onclick = () => seek(player.currentTime + 5);
+$("prevFrame").onclick = () => { player.pause(); seek(player.currentTime - frame()); };
+$("nextFrame").onclick = () => { player.pause(); seek(player.currentTime + frame()); };
+$("speed").onchange = () => (player.playbackRate = parseFloat($("speed").value));
+player.addEventListener("play", () => ($("playIcon").innerHTML = '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'));
+player.addEventListener("pause", () => ($("playIcon").innerHTML = '<path d="M8 5v14l11-7z"/>'));
+player.addEventListener("timeupdate", drawHeads);
+player.addEventListener("seeked", drawHeads);
+player.addEventListener("click", togglePlay);
+player.addEventListener("error", async () => {
+  if (!video || player.src.includes("&p=1")) return;
+  const r = await api().make_playable();
+  if (r.url) { player.src = r.url; return; }
+  if (r.working) { $("wait").hidden = false; $("waitBar").style.width = "0%"; }
+});
+
+function detailWindow() {
+  if (sel < 0 || !sets[sel] || !video) return [0, video ? video.duration : 1];
+  const s = sets[sel], pad = Math.max(20, (s.end - s.start) * 0.04);
+  return [Math.max(0, s.start - pad), Math.min(video.duration, s.end + pad)];
+}
+function drawHeads() {
+  if (!video) return;
+  const t = player.currentTime || 0;
+  const s = sets[sel];
+  $("time").innerHTML = s
+    ? `${clock(t, true)} <span>· ${short(Math.max(0, t - s.start))} of ${short(s.end - s.start)}</span>`
+    : `${clock(t, true)} <span>/ ${clock(video.duration)}</span>`;
+  const [a, b] = detailWindow();
+  $("detailHead").style.left = `${((t - a) / (b - a)) * 100}%`;
+  $("overview").querySelector(".head")?.style.setProperty("left", `${(t / video.duration) * 100}%`);
+}
+function drawBars() {
+  if (!video) return;
+  const [a, b] = detailWindow(), s = sets[sel];
+  $("detailRange").hidden = !s;
+  if (s) {
+    $("detailRange").style.left = `${((s.start - a) / (b - a)) * 100}%`;
+    $("detailRange").style.width = `${((s.end - s.start) / (b - a)) * 100}%`;
+    $("detailRange").classList.toggle("locked", s.locked);
+  }
+  $("detailL").textContent = clock(a);
+  $("detailR").textContent = clock(b);
+  $("overview").innerHTML = sets.map((x, i) => `<div class="block ${x.locked ? "locked" : ""} ${i === sel ? "sel" : ""}" style="left:calc(${(x.start / video.duration) * 100}% + 1px);width:calc(${((x.end - x.start) / video.duration) * 100}% - 2px)"></div>`).join("") + '<div class="head"></div>';
+  drawHeads();
+}
+function clickBar(el, toTime) {
+  let down = false;
+  const at = (e) => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
+  el.addEventListener("mousedown", (e) => { down = true; seek(toTime(at(e))); });
+  window.addEventListener("mousemove", (e) => { if (down) seek(toTime(at(e))); });
+  window.addEventListener("mouseup", () => (down = false));
+}
+clickBar($("detail"), (f) => { const [a, b] = detailWindow(); return a + f * (b - a); });
+clickBar($("overview"), (f) => {
+  const t = f * video.duration;
+  const i = sets.findIndex((s) => t >= s.start && t < s.end);
+  if (i >= 0 && i !== sel) { sel = i; renderAll(false); }
+  return t;
+});
+
+// ----- Sets list -----
+function renderList() {
+  const done = sets.filter((s) => s.locked).length;
+  $("count").textContent = sets.length ? `${done} of ${sets.length} done` : "";
+  if (!sets.length) { $("list").innerHTML = '<div class="empty">No sets yet</div>'; return; }
+  $("list").innerHTML = sets.map((s, i) => `<button class="set ${s.locked ? "locked" : ""} ${i === sel ? "sel" : ""}" data-i="${i}">
+    <span class="n">${i + 1}</span><b>${esc(s.title)}</b><span>${clock(s.start)} – ${clock(s.end)} · ${short(s.length)}</span>
+    <span class="x" role="button" data-delete="${i}" title="Delete set">×</span></button>`).join("");
+  $("list").querySelectorAll(".set").forEach((el) => (el.onclick = async (e) => {
+    const i = Number(el.dataset.i);
+    if (e.target.dataset.delete !== undefined) { change(await api().delete_set(i), `Deleted ${sets[i].title}.`); return; }
+    select(i);
+  }));
+  $("list").querySelector(".set.sel")?.scrollIntoView({ block: "nearest" });
+}
+function select(i, jump = true) {
+  if (i < 0 || i >= sets.length) return;
+  sel = i;
+  renderAll(false);
+  if (jump) seek(sets[i].start);
+}
+
+// ----- The selected set -----
+function fillSelect(el, names, value, empty) {
+  el.innerHTML = (empty ? `<option value="">${esc(empty)}</option>` : "") + names.map((n) => `<option>${esc(n)}</option>`).join("");
+  if (value && !names.includes(value)) el.insertAdjacentHTML("beforeend", `<option>${esc(value)}</option>`);
+  el.value = value || "";
+}
+let thumbTimer = null;
+function renderSelected() {
+  const s = sets[sel];
+  $("selected").hidden = !s;
+  if (!s) return;
+  if (document.activeElement !== $("title")) $("title").value = s.title;
+  $("doneBadge").hidden = !s.locked;
+  $("meta").textContent = `${clock(s.start)} – ${clock(s.end)} · ${short(s.length)}`;
+  for (const card of document.querySelectorAll(".player-card")) {
+    const side = card.dataset.side, character = side === "1" ? s.character_one : s.character_two, skin = side === "1" ? s.skin_one : s.skin_two;
+    card.querySelector(".name").textContent = (side === "1" ? s.nameOne : s.nameTwo) || `Player ${side}`;
+    fillSelect(card.querySelector(".character"), characters.characters, character, "Character");
+    fillSelect(card.querySelector(".skin"), characters.skins[character] || ["Default"], skin);
+    card.querySelector(".skin").disabled = !character;
+    const portrait = card.querySelector(".portrait");
+    portrait.classList.toggle("empty", !character);
+    portrait.innerHTML = character ? `<img src="${urls.render}?c=${encodeURIComponent(character)}&s=${encodeURIComponent(skin)}" alt="">` : "?";
+  }
+  for (const id of ["setStart", "setEnd"]) $(id).disabled = s.locked;
+  $("endPrev").disabled = sel === 0 || sets[sel - 1]?.locked;
+  $("doneBtn").className = s.locked ? "btn" : "btn primary";
+  $("doneBtn").innerHTML = s.locked ? "Unlock set" : "Mark done <kbd>D</kbd>";
+  clearTimeout(thumbTimer);
+  thumbTimer = setTimeout(() => ($("thumb").src = `${urls.thumb}?i=${sel}&v=${Date.now()}`), 120);
+}
+function renderAll(scroll = true) { renderList(); renderSelected(); drawBars(); }
+
+// A change from the Python side: new sets, and a message with Undo.
+function apply(r) {
+  if (!r) return false;
+  if (r.error) { toast(r.error); return false; }
+  if (r.sets) sets = r.sets;
+  if (r.select !== undefined) sel = r.select;
+  if (sel >= sets.length) sel = sets.length - 1;
+  renderAll();
+  return true;
+}
+function change(r, text) { if (apply(r) && text) toast(text, undo); }
+
+for (const card of document.querySelectorAll(".player-card")) {
+  const side = Number(card.dataset.side);
+  card.querySelector(".character").onchange = async (e) => change(await api().set_character(sel, side, e.target.value, "Default"));
+  card.querySelector(".skin").onchange = async (e) => change(await api().set_character(sel, side, card.querySelector(".character").value, e.target.value));
+}
+$("title").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") { e.target.value = sets[sel].title; e.target.blur(); } });
+$("title").addEventListener("change", async (e) => change(await api().rename(sel, e.target.value)));
+$("setStart").onclick = async () => change(await api().set_boundary(sel, "start", player.currentTime), `${sets[sel].title} starts at ${clock(player.currentTime)}.`);
+$("setEnd").onclick = async () => change(await api().set_boundary(sel, "end", player.currentTime), `${sets[sel].title} ends at ${clock(player.currentTime)}.`);
+$("endPrev").onclick = async () => change(await api().end_previous_here(sel, player.currentTime), `${sets[sel - 1].title} ends at ${clock(player.currentTime)}.`);
+$("addSet").onclick = async () => change(await api().add_set(player.currentTime), `Added a set at ${clock(player.currentTime)}.`);
+$("doneBtn").onclick = markDone;
+async function markDone() {
+  const s = sets[sel], wasLocked = s.locked, index = sel;
+  const r = await api().toggle_done(sel);
+  if (!apply(r)) return;
+  if (wasLocked) { toast(`${s.title} unlocked.`, undo); return; }
+  toast(r.naming ? `${s.title} done. Reading the names…` : `${s.title} done.`, undo);
+  if (index + 1 < sets.length && !sets[index + 1].locked) select(index + 1);
+}
+$("tournament").addEventListener("change", async (e) => { await api().set_tournament(e.target.value); renderSelected(); });
+
+// ----- Find sets and export -----
+$("findBtn").onclick = async () => {
+  const r = await api().find_sets();
+  if (r.error) { toast(r.error); return; }
+  $("scanning").hidden = false; $("findBtn").disabled = true; $("scanBar").style.width = "0%"; $("scanText").textContent = "Finding sets";
+};
+$("exportBtn").onclick = async () => {
+  const r = await api().export();
+  if (r.error) { toast(r.error); return; }
+  if (r.working) { $("exporting").hidden = false; $("exportBtn").hidden = true; $("exportBar").style.width = "0%"; $("exportText").textContent = `Exporting 1 of ${r.total || sets.length}`; }
+};
+
+window.onEvent = (e) => {
+  if (e.kind === "scan_progress") { $("scanBar").style.width = `${e.value * 100}%`; $("scanText").textContent = `Finding sets · ${Math.round(e.value * 100)}%`; }
+  else if (e.kind === "scan_done") { $("scanning").hidden = true; $("findBtn").disabled = false; }
+  else if (e.kind === "sets") { apply({ ...e.state, select: e.select }); if (e.text) toast(e.text, e.undo ? undo : null); }
+  else if (e.kind === "export_progress") { $("exportBar").style.width = `${(e.done / e.total) * 100}%`; $("exportText").textContent = `Exporting ${e.done + 1} of ${e.total}`; }
+  else if (e.kind === "export_done") {
+    $("exporting").hidden = true; $("exportBtn").hidden = false;
+    if (e.total) toast(`Exported ${e.total} sets.`, () => api().open_folder(e.folder), "Open folder", 12000);
+  }
+  else if (e.kind === "playable_progress") { $("waitBar").style.width = `${e.value * 100}%`; }
+  else if (e.kind === "playable_ready") { $("wait").hidden = true; const t = player.currentTime; player.src = e.url; player.addEventListener("loadedmetadata", () => seek(sets[sel]?.start ?? t), { once: true }); }
+  else if (e.kind === "opened") opened(e.result);
+  else if (e.kind === "toast") toast(e.text);
+};
+
+// ----- Scoreboard area, drawn on the video -----
+let area = null, dragFrom = null;
+function videoRect() {
+  const r = player.getBoundingClientRect(), vw = player.videoWidth || 16, vh = player.videoHeight || 9;
+  const scale = Math.min(r.width / vw, r.height / vh), w = vw * scale, h = vh * scale;
+  return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h, offX: (r.width - w) / 2, offY: (r.height - h) / 2 };
+}
+function drawArea() {
+  const v = videoRect(), box = $("areaBox");
+  box.style.left = `${v.offX + area.x * v.width}px`; box.style.top = `${v.offY + area.y * v.height}px`;
+  box.style.width = `${area.w * v.width}px`; box.style.height = `${area.h * v.height}px`;
+}
+function chooseArea() {
+  if (!video) { toast("Open a video first."); return; }
+  show("sets");
+  player.pause();
+  area = { ...video.area };
+  $("areaLayer").hidden = false;
+  requestAnimationFrame(drawArea);
+}
+$("areaLayer").addEventListener("mousedown", (e) => {
+  if (e.target.closest(".area-actions")) return;
+  const v = videoRect();
+  dragFrom = { x: (e.clientX - v.left) / v.width, y: (e.clientY - v.top) / v.height };
+});
+window.addEventListener("mousemove", (e) => {
+  if (!dragFrom) return;
+  const v = videoRect(), x = Math.max(0, Math.min(1, (e.clientX - v.left) / v.width)), y = Math.max(0, Math.min(1, (e.clientY - v.top) / v.height));
+  area = { x: Math.min(x, dragFrom.x), y: Math.min(y, dragFrom.y), w: Math.abs(x - dragFrom.x), h: Math.abs(y - dragFrom.y) };
+  drawArea();
+});
+window.addEventListener("mouseup", () => (dragFrom = null));
+$("areaSave").onclick = async () => {
+  const r = await api().set_scoreboard_area(area.x, area.y, area.w, area.h);
+  video.area = r.area;
+  $("areaLayer").hidden = true;
+  toast("Scoreboard area saved.");
+};
+$("areaCancel").onclick = () => ($("areaLayer").hidden = true);
+window.addEventListener("resize", () => { if (!$("areaLayer").hidden) drawArea(); });
+
+// ----- Settings -----
+const pathName = (p) => (p ? p.split(/[\\/]/).pop() : "");
+async function renderSettings() {
+  settings = await api().settings_info();
+  $("sFolder").textContent = settings.characterFolder ? `${pathName(settings.characterFolder)} · ${settings.characters} characters` : "Not chosen";
+  $("sFolder").title = settings.characterFolder;
+  $("sBackground").textContent = settings.background ? pathName(settings.background) : "Plain blue";
+  $("sBackground").title = settings.background;
+  $("sTesseract").textContent = settings.tesseract || "Not found";
+  $("sTesseract").className = settings.tesseract ? "" : "bad";
+  $("getTesseract").hidden = !!settings.tesseract;
+  $("sFfmpeg").textContent = settings.ffmpeg ? "Found" : "Not found";
+  $("sFfmpeg").className = settings.ffmpeg ? "good" : "bad";
+  $("getFfmpeg").hidden = settings.ffmpeg;
+  const a = video ? video.area : null;
+  $("sArea").textContent = a ? `${Math.round(a.w * 100)}% × ${Math.round(a.h * 100)}% of the picture` : "Open a video to choose it";
+  document.querySelectorAll("[data-number]").forEach((el) => { if (document.activeElement !== el) el.value = settings[el.dataset.number]; });
+  $("cuts").querySelectorAll("button").forEach((b) => b.classList.toggle("on", (b.dataset.exact === "1") === !!settings.exactCuts));
+  $("sCuts").textContent = settings.exactCuts ? "Frame-accurate, re-encoded" : "Stream copy, nearest keyframe";
+}
+document.querySelectorAll("[data-choose]").forEach((b) => (b.onclick = async () => {
+  const r = await api().choose_path(b.dataset.choose);
+  if (r.error) { toast(r.error); return; }
+  if (b.dataset.choose === "characterFolder") characters = await api().characters();
+  await renderSettings();
+  renderSelected();
+}));
+document.querySelectorAll("[data-number]").forEach((el) => (el.onchange = async () => {
+  const r = await api().set_setting(el.dataset.number, el.value);
+  if (r.error) toast(r.error); else toast("Saved.");
+  renderSettings();
+}));
+$("cuts").querySelectorAll("button").forEach((b) => (b.onclick = async () => { await api().set_setting("exactCuts", b.dataset.exact === "1"); renderSettings(); }));
+$("chooseArea").onclick = chooseArea;
+$("getTesseract").onclick = () => api().open_url("https://github.com/UB-Mannheim/tesseract/wiki");
+$("getFfmpeg").onclick = () => api().open_url("https://www.gyan.dev/ffmpeg/builds/");
+$("nameDone").onclick = async () => { const r = await api().name_done_sets(); toast(r.count ? `Reading the names of ${r.count} sets…` : "Every done set already has a name."); };
+
+// ----- Keys -----
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select, textarea") || tab !== "sets" || !video) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const keys = {
+    " ": togglePlay, arrowleft: () => seek(player.currentTime - (e.shiftKey ? 30 : 5)), arrowright: () => seek(player.currentTime + (e.shiftKey ? 30 : 5)),
+    ",": () => $("prevFrame").click(), ".": () => $("nextFrame").click(), arrowup: () => select(sel - 1), arrowdown: () => select(sel + 1),
+    i: () => !$("setStart").disabled && $("setStart").click(), o: () => !$("setEnd").disabled && $("setEnd").click(), d: () => sel >= 0 && markDone(),
+    escape: () => ($("areaLayer").hidden = true),
+  };
+  if (keys[k]) { e.preventDefault(); keys[k](); }
+});
+
+window.addEventListener("pywebviewready", async () => {
+  const start = await api().init();
+  urls = start.urls;
+  settings = start.settings;
+  renderRecent(start.recent);
+  characters = await api().characters();
+});
+</script>
+</body>
+</html>
